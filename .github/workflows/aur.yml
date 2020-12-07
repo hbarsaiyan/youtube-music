@@ -1,0 +1,29 @@
+name: AUR Publish
+
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    name: AUR Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check latest version
+        run: |
+          LATESTV=LATESTV=$(git ls-remote --tags --refs --sort="version:refname" git://github.com/th-ch/youtube-music.git | awk -F/ 'END{print$NF}')
+          LASTV=$(cat lastversion)
+          OLDSHA=$(cat sha512)
+          if [[ "$LATESTV" != "$LASTV" ]] ;then echo "New Release found!" && wget https://github.com/th-ch/youtube-music/releases/download/$LATESTV/YouTube-Music-${LATESTV//v}.AppImage && NEWSHA=$(sha512sum *.AppImage | awk '{ print $1}') && sed -i "s/$OLDSHA/$NEWSHA/" sha512 && rm *.AppImage && sed -i "s/$LASTV/$LATESTV/" lastversion && cd template && sed -i "s/${LASTV//v}/${LATESTV//v}/" PKGBUILD && sed -i "s/$OLDSHA/$NEWSHA/" PKGBUILD && cd -; else exit 1; fi
+          git add .
+          git commit -m "Update to $LATESTV"
+          git push
+
+      - uses: KSXGitHub/github-actions-deploy-aur@v2.2.3
+        with:
+          pkgname: youtube-music-bin
+          pkgbuild: ./template/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: Update to ${LATESTV}
+          ssh_keyscan_types: rsa,dsa,ecdsa,ed25519
